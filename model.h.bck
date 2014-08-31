@@ -1,0 +1,6 @@
+#import <Foundation/Foundation.h>
+
+@interface model : NSObject 
+  @property (nonatomic, strong) NSManagedObjectContext* context; 
+  -(NSManagedObjectModel*) context0;
+@end

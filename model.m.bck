@@ -1,0 +1,30 @@
+#import "model.h"
+
+@implementation model
+  @synthesize context;
+
+  -(NSManagedObjectContext*) context0 {
+    if (self.context != nil) return self.context;
+
+    NSURL * u = [[NSBundle mainBundle] URLForResource:@"MyModel"
+                  withExtension:@"momd"]; 
+    NSManagedObjectModel *m = [[[NSManagedObjectModel alloc]
+                                initWithContentsOfURL:u] autorelease];
+    NSURL *st_u0 = [[[NSFileManager defaultManager]
+                        URLsForDirectory:NSDocumentDirectory
+                        inDomains:NSUserDomainMask]
+                        lastObject];
+    NSURL *st_u = [st_u0 URLByAppendingPathComponent:@"console.sqlite"];
+    NSPersistentStoreCoordinator *c = [[[NSPersistentStoreCoordinator alloc]
+                                  initWithManagedObjectModel:m] autorelease];
+    NSError *err = nil;
+    [c addPersistentStoreWithType:NSSQLiteStoreType configuration:nil
+      URL:st_u options:nil error:&err]; 
+    if (err) NSLog(@"%@ %@", err, [err userInfo]);  
+    self.context = [[[NSManagedObjectContext alloc]
+                                        init] autorelease];
+    [self.context setPersistentStoreCoordinator:c];
+    if (err) NSLog(@"%@ %@", err, [err userInfo]);  
+    return context;
+  } 
+@end

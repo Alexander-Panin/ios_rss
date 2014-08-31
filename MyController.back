@@ -1,0 +1,35 @@
+
+@interface MyController() {}
+  @property(nonatomic, retain) NSMutableArray * items; 
+  @property(nonatomic, retain) MyModel * model; 
+@end
+
+@implementation MyController
+  
+  -(id) init {
+    self = [super init];
+    if (self) {
+      self.model = [MyModel model]; 
+    }
+    return self;  
+  }
+
+  -(NSMutableArray *) items: (NSString *) filter {
+    [self.items removeAllObjects];
+    for(id obj in [self.model web_items]) {
+      if ([[obj valueForKey:@"title"] rangeOfString:filter]
+            .location != NSNotFound) [self.items addObject:obj]; 
+    }
+    [self.items sortedArrayUsingComparator: ^(id obj, id obj2) {
+      return [[obj valueForKey:@"pubDate"]
+        compare:[obj2 valueForKey:@"pubDate"]];
+    }];
+    return self.items;
+  }  
+
+  -(void) dealloc {
+    self.items = 0;
+    self.model = 0;
+    [super dealloc];
+  }
+@end

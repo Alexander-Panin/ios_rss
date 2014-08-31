@@ -1,0 +1,4 @@
+
+@interface MyController : NSObject
+
+@end

@@ -1,0 +1,118 @@
+#import "MyModel.h"
+#import "MyXmlLoader.h"
+#define HAVE_TO_COUNT_IN_ITEM 9
+#define MAX_CONCURRENT_OPER 45
+
+@interface MyModel() {}
+  @property(nonatomic, retain) NSManagedObjectContext* context; 
+  @property(nonatomic, retain) NSEntityDescription * entity;
+  @property(atomic, assign) int sync_counter; 
+@end
+
+@implementation MyModel
+  
+  -(id) init {
+    self = [super init];
+    if (self) {
+      [self init_context];
+      self.entity = [NSEntityDescription entityForName:@"MyData"
+        inManagedObjectContext:self.context];
+      return self;
+    }
+      return nil;
+  }
+
+  +(id) model
+  { return [[[self alloc] init] autorelease]; }
+
+  -(void) init_context {
+    NSURL * u = [[NSBundle mainBundle] URLForResource:@"MyModel"
+                  withExtension:@"momd"]; 
+    NSManagedObjectModel *m = [[[NSManagedObjectModel alloc]
+                                initWithContentsOfURL:u] autorelease];
+    NSURL *st_u0 = [[[NSFileManager defaultManager]
+                        URLsForDirectory:NSDocumentDirectory
+                        inDomains:NSUserDomainMask]
+                        lastObject];
+    NSURL *st_u = [st_u0 URLByAppendingPathComponent:@"console.sqlite"];
+    NSPersistentStoreCoordinator *c = [[[NSPersistentStoreCoordinator alloc]
+                                  initWithManagedObjectModel:m] autorelease];
+    NSError *err = nil;
+    [c addPersistentStoreWithType:NSSQLiteStoreType configuration:nil
+      URL:st_u options:nil error:&err]; 
+    if (err) { 
+      NSLog(@"%@ %@", err, [err userInfo]);  
+      abort();
+    }
+    self.context = [[[NSManagedObjectContext alloc] init] autorelease];
+    [self.context setPersistentStoreCoordinator:c];
+  } 
+
+  -(void) useBuffer:(NSMutableArray *) buffer {
+    if ([buffer count] != HAVE_TO_COUNT_IN_ITEM) return; //skip bad formated  
+    NSManagedObject *obj = [NSEntityDescription
+      insertNewObjectForEntityForName:[self.entity name]
+      inManagedObjectContext:self.context];
+      
+    int i = 0;
+    [obj setValue:[buffer objectAtIndex:i++] forKey:@"title"];
+    [obj setValue:[buffer objectAtIndex:i++] forKey:@"desc"];
+    NSMutableString * str = [NSMutableString stringWithString:
+      [buffer objectAtIndex:i++]];
+    [str appendString:[buffer objectAtIndex:i++]];
+    [str appendString:[buffer objectAtIndex:i++]];
+    [obj setValue:str forKey:@"link"];
+    [obj setValue:[buffer objectAtIndex:i++] forKey:@"guid"];
+    NSDateFormatter * formatter = [[[NSDateFormatter alloc] init] autorelease]; 
+    [formatter setDateFormat:@"EE, d LLLL yyyy HH:mm:ss Z"];
+    [obj setValue:[formatter dateFromString:
+      [buffer objectAtIndex:i++]] forKey:@"pubDate"];
+    [obj setValue:[buffer objectAtIndex:i++] forKey:@"small_img_url"];
+    [obj setValue:[buffer objectAtIndex:i++] forKey:@"img_url"];
+  }
+
+  -(NSSet *) items {
+    if ([[self.context registredObjects] length] == 0)
+      return [self web_items];
+    return [self.context registeredObjects];
+  }
+
+  -(NSSet *) web_items {
+    MyXmlLoader * loader = [MyXmlLoader loader];
+    [loader setDelegate:self];
+    [loader load:[NSURL URLWithString:@"http://feeds.bbci.co.uk/news/rss.xml"]];
+    return [self.context registeredObjects];
+  }
+
+  -(bool) isReady
+  { return (self.sync_counter == 0); }
+
+  -(void) web_images:(void (^)(void))callback {
+    NSOperationQueue * q = [[[NSOperationQueue alloc] init] autorelease];
+    self.sync_counter = [[self.context insertedObjects] count];
+    [q setMaxConcurrentOperationCount:MAX_CONCURRENT_OPER];
+    for (id obj in [self.context insertedObjects] ) {
+      [q addOperationWithBlock: ^{
+        [obj setValue:
+          [[[NSData alloc] initWithContentsOfURL:
+            [NSURL URLWithString:[obj valueForKey:@"small_img_url"]]]
+            autorelease] forKey:@"small_img"];
+        [obj setValue:
+          [[[NSData alloc] initWithContentsOfURL:
+            [NSURL URLWithString:[obj valueForKey:@"img_url"]]]
+            autorelease] forKey:@"img"];
+        self.sync_counter--;
+      }];
+    }
+    [q addOperationWithBlock: ^{
+      while (![self isReady]) { }
+      callback();
+    }];
+  }
+
+  -(void) dealloc {
+    self.context = 0;
+    self.entity = 0;
+    [super dealloc];
+  }
+@end
